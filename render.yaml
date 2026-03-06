@@ -1,0 +1,64 @@
+services:
+  # Application Web Laravel
+  - type: web
+    name: cicd-laravel
+    runtime: docker
+    plan: free
+    branch: main
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: APP_NAME
+        value: Laravel
+      - key: APP_ENV
+        value: production
+      - key: APP_KEY
+        generateValue: true
+      - key: APP_DEBUG
+        value: false
+      - key: APP_URL
+        value: https://cicd-laravel.onrender.com
+      - key: LOG_CHANNEL
+        value: stderr
+      - key: LOG_LEVEL
+        value: error
+      - key: DB_CONNECTION
+        value: pgsql
+      - key: DB_HOST
+        fromDatabase:
+          name: cicd-laravel-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: cicd-laravel-db
+          property: port
+      - key: DB_DATABASE
+        fromDatabase:
+          name: cicd-laravel-db
+          property: database
+      - key: DB_USERNAME
+        fromDatabase:
+          name: cicd-laravel-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: cicd-laravel-db
+          property: password
+      - key: SESSION_DRIVER
+        value: database
+      - key: CACHE_STORE
+        value: database
+      - key: QUEUE_CONNECTION
+        value: database
+      - key: FILESYSTEM_DISK
+        value: local
+      - key: BROADCAST_CONNECTION
+        value: log
+      - key: MAIL_MAILER
+        value: log
+
+  # Base de données PostgreSQL
+  - type: pgsql
+    name: cicd-laravel-db
+    plan: free
+    databaseName: cicd_laravel
+    user: cicd_laravel_user
