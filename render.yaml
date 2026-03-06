@@ -56,9 +56,9 @@ services:
       - key: MAIL_MAILER
         value: log
 
-  # Base de données PostgreSQL
-  - type: pgsql
-    name: cicd-laravel-db
-    plan: free
+# Base de données PostgreSQL
+databases:
+  - name: cicd-laravel-db
     databaseName: cicd_laravel
     user: cicd_laravel_user
+    plan: free
