@@ -19,8 +19,11 @@ RUN apt-get update && apt-get install -y \
 # Nettoyer le cache
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# Installer les dépendances pour PostgreSQL
+RUN apt-get update && apt-get install -y libpq-dev
+
 # Installer les extensions PHP nécessaires pour Laravel
-RUN docker-php-ext-install pdo_mysql pdo_sqlite mbstring exif pcntl bcmath gd
+RUN docker-php-ext-install pdo_mysql pdo_sqlite pdo_pgsql pgsql mbstring exif pcntl bcmath gd
 
 # Obtenir Composer depuis l'image officielle
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
@@ -50,12 +53,12 @@ RUN echo '<VirtualHost *:80>\n\
     CustomLog ${APACHE_LOG_DIR}/access.log combined\n\
 </VirtualHost>' > /etc/apache2/sites-available/000-default.conf
 
-# Créer la base de données SQLite si elle n'existe pas
-RUN touch /var/www/html/database/database.sqlite \
-    && chown www-data:www-data /var/www/html/database/database.sqlite
+# Copier et rendre exécutable le script d'entrypoint
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Exposer le port 80
 EXPOSE 80
 
-# Démarrer Apache
-CMD ["apache2-foreground"]
+# Utiliser le script d'entrypoint
+ENTRYPOINT ["docker-entrypoint.sh"]
