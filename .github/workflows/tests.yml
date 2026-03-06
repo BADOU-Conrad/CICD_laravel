@@ -1,0 +1,51 @@
+name: Tests Unitaires
+
+on:
+  pull_request:
+    branches:
+      - stage
+      - main
+  push:
+    branches:
+      - dev
+      - stage
+
+jobs:
+  tests:
+    name: Tests Laravel (PHP ${{ matrix.php-versions }})
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        php-versions: ['8.2']
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-versions }}
+          extensions: mbstring, dom, fileinfo, mysql, pdo_mysql
+          coverage: none
+      
+      - name: Copy .env
+        run: php -r "file_exists('.env') || copy('.env.example', '.env');"
+      
+      - name: Install Composer dependencies
+        run: composer install --prefer-dist --no-progress --no-interaction
+      
+      - name: Generate application key
+        run: php artisan key:generate
+      
+      - name: Create Database
+        run: |
+          mkdir -p database
+          touch database/database.sqlite
+      
+      - name: Execute tests (Unit and Feature tests) via PHPUnit
+        env:
+          DB_CONNECTION: sqlite
+          DB_DATABASE: database/database.sqlite
+        run: php artisan test
