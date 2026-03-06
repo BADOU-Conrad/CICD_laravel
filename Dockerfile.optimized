@@ -1,0 +1,129 @@
+# ===================================
+# Stage 1: Dépendances Composer
+# ===================================
+FROM composer:latest AS composer-build
+
+WORKDIR /app
+
+# Copier uniquement les fichiers de dépendances
+COPY composer.json composer.lock ./
+
+# Installer les dépendances (sans scripts ni autoload)
+RUN composer install \
+    --no-dev \
+    --no-scripts \
+    --no-autoloader \
+    --prefer-dist
+
+# Copier le code source
+COPY . .
+
+# Générer l'autoloader optimisé
+RUN composer dump-autoload --optimize --no-dev
+
+# ===================================
+# Stage 2: Image de production
+# ===================================
+FROM php:8.2-apache
+
+# Métadonnées
+LABEL maintainer="votre-email@example.com"
+LABEL description="Laravel Application - Production Ready"
+LABEL version="1.0.0"
+
+# Définir le répertoire de travail
+WORKDIR /var/www/html
+
+# Installer les dépendances système en une seule couche
+RUN apt-get update && apt-get install -y \
+    curl \
+    libpng-dev \
+    libonig-dev \
+    libxml2-dev \
+    libpq-dev \
+    sqlite3 \
+    libsqlite3-dev \
+    zip \
+    unzip \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Installer les extensions PHP
+RUN docker-php-ext-install \
+    pdo_mysql \
+    pdo_sqlite \
+    pdo_pgsql \
+    pgsql \
+    mbstring \
+    exif \
+    pcntl \
+    bcmath \
+    gd
+
+# Installer et configurer OPcache pour de meilleures performances
+RUN docker-php-ext-install opcache
+COPY <<EOF /usr/local/etc/php/conf.d/opcache.ini
+opcache.enable=1
+opcache.memory_consumption=128
+opcache.interned_strings_buffer=8
+opcache.max_accelerated_files=10000
+opcache.validate_timestamps=0
+opcache.revalidate_freq=0
+opcache.fast_shutdown=1
+EOF
+
+# Copier les fichiers de vendor depuis le stage composer
+COPY --from=composer-build /app/vendor ./vendor
+
+# Copier tout le code de l'application
+COPY . .
+
+# Créer les répertoires nécessaires
+RUN mkdir -p \
+    storage/framework/cache \
+    storage/framework/sessions \
+    storage/framework/views \
+    storage/logs \
+    bootstrap/cache
+
+# Configurer les permissions
+RUN chown -R www-data:www-data /var/www/html \
+    && chmod -R 775 storage bootstrap/cache
+
+# Activer mod_rewrite pour Apache
+RUN a2enmod rewrite
+
+# Configuration Apache pour Laravel
+RUN echo '<VirtualHost *:80>\n\
+    ServerAdmin webmaster@localhost\n\
+    DocumentRoot /var/www/html/public\n\
+    \n\
+    <Directory /var/www/html/public>\n\
+        Options -Indexes +FollowSymLinks\n\
+        AllowOverride All\n\
+        Require all granted\n\
+    </Directory>\n\
+    \n\
+    ErrorLog ${APACHE_LOG_DIR}/error.log\n\
+    CustomLog ${APACHE_LOG_DIR}/access.log combined\n\
+</VirtualHost>' > /etc/apache2/sites-available/000-default.conf
+
+# Copier le script d'entrypoint
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+# Exposer le port 80
+EXPOSE 80
+
+# Utiliser un utilisateur non-root (optionnel pour plus de sécurité)
+USER www-data
+
+# Healthcheck
+HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost/ || exit 1
+
+# Script d'entrypoint
+ENTRYPOINT ["docker-entrypoint.sh"]
+
+# Commande par défaut
+CMD ["apache2-foreground"]
